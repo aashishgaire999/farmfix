@@ -1,0 +1,55 @@
+classDiagram
+    direction TB
+
+    class Equipment {
+        +int equipment_id «PK»
+        +String name
+        +String equipment_type
+        +String manufacturer
+        +String model
+        +int year
+        +String serial_number «unique»
+        +Date purchase_date
+        +String status
+        +totalRepairCost() Real
+        +totalMaintenanceCost() Real
+        +lastServiceDate() Date
+    }
+
+    class Repair {
+        +int repair_id «PK»
+        +Date repair_date
+        +String problem
+        +String repair_description
+        +Real cost
+        +String notes
+        +isInHouse() Boolean
+    }
+
+    class Maintenance {
+        +int maintenance_id «PK»
+        +Date service_date
+        +String service_type
+        +String description
+        +Real cost
+        +Date next_service_date
+        +String notes
+        +isOverdue() Boolean
+    }
+
+    class Mechanic {
+        +int mechanic_id «PK»
+        +String name
+        +String shop
+        +String phone
+        +String specialty
+        +repairCount() int
+    }
+
+    Equipment "1" -- "0..*" Repair : has
+    Equipment "1" -- "0..*" Maintenance : receives
+    Mechanic "0..1" -- "0..*" Repair : performs
+
+    note for Repair "Mechanic is 0..1, not 1.
+A repair the operator does in-house
+has no mechanic on record."

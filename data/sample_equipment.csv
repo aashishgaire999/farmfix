@@ -1,0 +1,6 @@
+name,equipment_type,manufacturer,model,year,serial_number,purchase_date,status
+Massey Ferguson 4707,Tractor,Massey Ferguson,4707,2022,MF4707J2204410,2022-03-08,Operational
+Great Plains YP-1625,Planter,Great Plains,YP-1625,2019,GP1625A19K00781,2019-02-25,Operational
+Hagie STS12 Sprayer,Sprayer,Hagie,STS12,2018,HGSTS12X18M00344,2018-11-14,Needs Repair
+Vermeer R2300 Rake,Tillage,Vermeer,R2300,2020,VMR2300T20Q11205,2020-07-01,Operational
+Ford F-350 Farm Truck,Truck,Ford,F-350,2016,1FT8W3BT6GEB12345,2016-09-30,Operational

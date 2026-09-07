@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ item.name }}</h1>
+    <p class="spec-line">
+      {{ item.manufacturer }}{% if item.model %} {{ item.model }}{% endif %} ·
+      {{ item.equipment_type }}{% if item.year %} · {{ item.year }}{% endif %}
+      {% if item.serial_number %} · SN {{ item.serial_number }}{% endif %}
+    </p>
+  </div>
+  <div>
+    <a class="btn btn-secondary" href="{{ url_for('add_repair', equipment_id=item.equipment_id) }}">+ Log repair</a>
+    <a class="btn btn-secondary" href="{{ url_for('add_maintenance', equipment_id=item.equipment_id) }}">+ Log service</a>
+    <a class="btn" href="{{ url_for('edit_equipment', equipment_id=item.equipment_id) }}">Edit</a>
+  </div>
+</div>
+
+<p class="lede">
+  This page is where the relational design pays off: the machine's row comes from
+  <code>equipment</code>, its repair history from <code>repairs</code> joined to
+  <code>mechanics</code>, and its service history from <code>maintenance</code> —
+  three tables tied together by the foreign key <code>equipment_id</code>.
+</p>
+
+<div class="grid grid-4" style="margin-bottom:20px">
+  <div class="kpi accent">
+    <div class="label">Repairs</div>
+    <div class="value">{{ totals.repair_count }}</div>
+    <div class="sub">{{ totals.total_repair_cost | money }} total</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Services</div>
+    <div class="value">{{ totals.maintenance_count }}</div>
+    <div class="sub">{{ totals.total_maintenance_cost | money }} total</div>
+  </div>
+  <div class="kpi accent-amber">
+    <div class="label">Lifetime cost</div>
+    <div class="value">{{ lifetime_cost | money }}</div>
+    <div class="sub">repairs + service</div>
+  </div>
+  <div class="kpi accent-amber">
+    <div class="label">Average repair</div>
+    <div class="value">{{ totals.avg_repair_cost | money }}</div>
+    <div class="sub">largest {{ totals.max_repair_cost | money }}</div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>Machine details</h2>
+    <dl class="kv">
+      <dt>Status</dt>
+      <dd><span class="badge {{ 'badge-ok' if item.status == 'Operational'
+                                else ('badge-err' if item.status in ['Needs Repair','Out of Service']
+                                else 'badge-neutral') }}">{{ item.status }}</span></dd>
+      <dt>Type</dt><dd>{{ item.equipment_type }}</dd>
+      <dt>Manufacturer</dt><dd>{{ item.manufacturer }}</dd>
+      <dt>Model</dt><dd>{{ item.model or '—' }}</dd>
+      <dt>Year</dt><dd>{{ item.year or '—' }}</dd>
+      <dt>Serial number</dt><dd>{{ item.serial_number or '—' }}</dd>
+      <dt>Purchased</dt><dd>{{ item.purchase_date | nice_date }}</dd>
+      <dt>Database id</dt><dd><code>equipment_id = {{ item.equipment_id }}</code></dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>
+      Service schedule
+      <button class="sql-toggle" data-sql-toggle="sql-totals">Show SQL</button>
+    </h2>
+    <dl class="kv">
+      <dt>Last serviced</dt>
+      <dd>{{ totals.last_service | nice_date if totals.last_service else 'No service recorded' }}</dd>
+      <dt>Next scheduled</dt>
+      <dd>
+        {% if next_service %}
+          {{ next_service | nice_date }}
+          {% if next_overdue %}
+            <span class="badge badge-err">Overdue</span>
+          {% else %}
+            <span class="badge badge-ok">Scheduled</span>
+          {% endif %}
+        {% else %}
+          <span class="muted">Nothing scheduled</span>
+        {% endif %}
+      </dd>
+      <dt>Repair spend</dt><dd>{{ totals.total_repair_cost | money }} across {{ totals.repair_count }} job(s)</dd>
+      <dt>Service spend</dt><dd>{{ totals.total_maintenance_cost | money }} across {{ totals.maintenance_count }} record(s)</dd>
+    </dl>
+    <pre class="sql" id="sql-totals" hidden>{{ sql_snippets.totals }}</pre>
+  </section>
+</div>
+
+<section class="card">
+  <h2>
+    Repair history ({{ repairs | length }})
+    <span>
+      <button class="sql-toggle" data-sql-toggle="sql-rep">Show SQL</button>
+      <a class="btn btn-sm" href="{{ url_for('add_repair', equipment_id=item.equipment_id) }}">+ Log repair</a>
+    </span>
+  </h2>
+  <p class="spec-line">
+    Joined to <code>mechanics</code> with a <strong>LEFT JOIN</strong>: repairs the
+    operator did in-house have <code>mechanic_id IS NULL</code>, and an inner join
+    would silently drop them from this history and from the totals above.
+  </p>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Problem</th><th>What was done</th><th>Mechanic</th><th class="num">Cost</th><th class="num">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for r in repairs %}
+          <tr>
+            <td>{{ r.repair_date | nice_date }}</td>
+            <td><strong>{{ r.problem }}</strong>
+              {% if r.notes %}<div class="muted" style="font-size:12.5px">{{ r.notes }}</div>{% endif %}
+            </td>
+            <td class="muted">{{ r.repair_description or '—' }}</td>
+            <td>
+              {% if r.mechanic_id %}
+                {{ r.mechanic_name }}
+                {% if r.shop %}<div class="muted" style="font-size:12px">{{ r.shop }}</div>{% endif %}
+              {% else %}
+                <span class="badge badge-neutral">In-house</span>
+              {% endif %}
+            </td>
+            <td class="num">{{ r.cost | money }}</td>
+            <td class="num">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('edit_repair', repair_id=r.repair_id) }}">Edit</a>
+              <form class="inline" method="post" action="{{ url_for('delete_repair', repair_id=r.repair_id) }}"
+                    data-confirm="Delete this repair record? This runs a DELETE against SQLite and cannot be undone.">
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="empty">No repairs recorded for this machine yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <pre class="sql" id="sql-rep" hidden>{{ sql_snippets.repairs }}
+
+-- bound parameter: {{ item.equipment_id }}</pre>
+</section>
+
+<section class="card">
+  <h2>
+    Maintenance history ({{ maintenance | length }})
+    <a class="btn btn-sm" href="{{ url_for('add_maintenance', equipment_id=item.equipment_id) }}">+ Log service</a>
+  </h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Serviced</th><th>Type</th><th>Description</th><th>Next due</th><th class="num">Cost</th><th class="num">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for m in maintenance %}
+          <tr class="{{ 'overdue' if m.next_service_date and m.next_service_date < today_iso }}">
+            <td>{{ m.service_date | nice_date }}</td>
+            <td><span class="badge badge-neutral">{{ m.service_type }}</span></td>
+            <td>{{ m.description or '—' }}
+              {% if m.notes %}<div class="muted" style="font-size:12.5px">{{ m.notes }}</div>{% endif %}
+            </td>
+            <td>
+              {% if m.next_service_date %}
+                {{ m.next_service_date | nice_date }}
+                {% if m.next_service_date < today_iso %}<span class="badge badge-err">Overdue</span>{% endif %}
+              {% else %}
+                <span class="muted">Not scheduled</span>
+              {% endif %}
+            </td>
+            <td class="num">{{ m.cost | money }}</td>
+            <td class="num">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('edit_maintenance', maintenance_id=m.maintenance_id) }}">Edit</a>
+              <form class="inline" method="post" action="{{ url_for('delete_maintenance', maintenance_id=m.maintenance_id) }}"
+                    data-confirm="Delete this service record? This runs a DELETE against SQLite and cannot be undone.">
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="empty">No service recorded for this machine yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Remove this machine</h2>
+  <p class="muted" style="margin-top:0">
+    Deleting <strong>{{ item.name }}</strong> also deletes its
+    {{ totals.repair_count }} repair record(s) and {{ totals.maintenance_count }}
+    service record(s), because both foreign keys are declared
+    <code>ON DELETE CASCADE</code>. SQLite performs the cascade itself — but only
+    because the connection sets <code>PRAGMA foreign_keys = ON</code>.
+  </p>
+  <form method="post" action="{{ url_for('delete_equipment', equipment_id=item.equipment_id) }}"
+        data-confirm="Delete {{ item.name }} and all {{ totals.repair_count + totals.maintenance_count }} related record(s)? This cannot be undone.">
+    <button class="btn btn-danger" type="submit">Delete equipment and its history</button>
+  </form>
+</section>
+{% endblock %}

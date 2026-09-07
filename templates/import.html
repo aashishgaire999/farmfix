@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Import CSV{% endblock %}
+
+{% block content %}
+<h1>Import equipment from CSV</h1>
+<p class="lede">
+  Most farms already have a machinery list in a spreadsheet. The importer reads it
+  with Python's <code>csv.DictReader</code>, runs every row through the
+  <em>same</em> validation function the Add-Equipment form uses, then inserts the
+  surviving rows with a single <code>executemany()</code>. Rows that fail are
+  listed back with the line number and the reason, and are not written.
+</p>
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>Upload a file</h2>
+    <form method="post" enctype="multipart/form-data">
+      <div class="field">
+        <label for="csv_file">CSV file</label>
+        <input type="file" name="csv_file" id="csv_file" accept=".csv" required>
+        <div class="hint">Maximum 2 MB. The first line must be the header row.</div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">Import into SQLite</button>
+      </div>
+    </form>
+    <p class="muted" style="font-size:13.5px;margin-bottom:0">
+      Two files ship with the project for testing:
+      <code>data/sample_equipment.csv</code> (5 clean rows) and
+      <code>data/sample_equipment_with_errors.csv</code> (2 good rows and 7 broken
+      ones, one per validation rule).
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Required columns</h2>
+    <ul class="tight">
+      <li><code>name</code> — required, ≤ 100 characters</li>
+      <li><code>equipment_type</code> — Tractor, Combine, Planter, Sprayer, Baler, Tillage, Loader, Truck, Irrigation or Other</li>
+      <li><code>manufacturer</code> — required</li>
+      <li><code>model</code> — optional</li>
+      <li><code>year</code> — a whole number between 1900 and 2100, or blank</li>
+      <li><code>serial_number</code> — must not already exist in the database, and must not repeat within the file</li>
+      <li><code>purchase_date</code> — <code>YYYY-MM-DD</code>, or blank</li>
+      <li><code>status</code> — Operational, Needs Repair, In Repair, Out of Service or Retired</li>
+    </ul>
+  </section>
+</div>
+
+{% if result %}
+  <section class="card">
+    <h2>Import result</h2>
+    <div class="pill-row">
+      <span class="badge badge-ok">{{ result.accepted }} inserted</span>
+      <span class="badge {{ 'badge-err' if result.rejected else 'badge-neutral' }}">{{ result.rejected | length }} rejected</span>
+      <span class="badge badge-neutral">{{ result.total }} data rows read</span>
+    </div>
+    {% if result.rejected %}
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th class="num">CSV line</th><th>Name</th><th>Why it was rejected</th></tr></thead>
+          <tbody>
+            {% for bad in result.rejected %}
+              <tr>
+                <td class="num">{{ bad.line }}</td>
+                <td>{{ bad.raw.name or '(blank)' }}</td>
+                <td>
+                  <ul class="tight" style="margin:0">
+                    {% for err in bad.errors %}<li>{{ err }}</li>{% endfor %}
+                  </ul>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted" style="margin-bottom:0">Every row passed validation and was inserted.</p>
+    {% endif %}
+    <p style="margin-bottom:0"><a href="{{ url_for('equipment') }}">View the equipment register →</a></p>
+  </section>
+{% endif %}
+
+<section class="card">
+  <h2>Importing from Excel instead</h2>
+  <p class="muted" style="margin-top:0">
+    The application accepts CSV only, because <code>csv</code> is in the Python
+    standard library and needs no extra dependency. An <code>.xlsx</code> file can
+    be loaded into the same database with a few lines of pandas — worth knowing
+    even though the app does not require it:
+  </p>
+  <pre class="sql">import pandas as pd, sqlite3
+
+# 1. Read the spreadsheet (needs: pip install pandas openpyxl)
+df = pd.read_excel("machinery.xlsx", sheet_name="Equipment")
+
+# 2. Keep only the columns the table has, in the right order
+cols = ["name", "equipment_type", "manufacturer", "model",
+        "year", "serial_number", "purchase_date", "status"]
+df = df[cols]
+
+# 3. Validate before writing — pandas will happily insert nonsense
+df = df[df["name"].notna() &amp; df["manufacturer"].notna()]
+df["purchase_date"] = pd.to_datetime(
+    df["purchase_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+# 4. Append to the existing table
+conn = sqlite3.connect("database/farmfix.db")
+conn.execute("PRAGMA foreign_keys = ON;")
+df.to_sql("equipment", conn, if_exists="append", index=False)
+conn.commit()</pre>
+  <p class="muted" style="margin-bottom:0;font-size:13.5px">
+    Two traps worth knowing. First, <code>to_sql(if_exists="replace")</code>
+    <strong>drops and recreates</strong> the table, destroying the primary key,
+    the foreign keys and every CHECK constraint in <code>schema.sql</code> — only
+    <code>"append"</code> is safe against a table you designed yourself. Second,
+    <code>to_sql</code> does no validation at all, which is why step 3 exists:
+    pandas will write a row that the application's own form would have rejected.
+  </p>
+</section>
+{% endblock %}

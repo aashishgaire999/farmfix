@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Equipment{% endblock %}
+
+{% macro sort_link(key, label) -%}
+  {% set next_dir = 'desc' if (filters.sort == key and filters.dir == 'asc') else 'asc' %}
+  <a href="{{ url_for('equipment', search=filters.search, equipment_type=filters.equipment_type,
+                      status=filters.status, sort=key, dir=next_dir) }}">
+    {{ label }}{% if filters.sort == key %}{{ ' ▲' if filters.dir == 'asc' else ' ▼' }}{% endif %}
+  </a>
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Equipment register</h1>
+    <p class="lede">
+      Every machine on the farm. The search box runs one <code>WHERE</code> clause
+      across name, manufacturer, model and serial number; the column headings
+      rewrite the <code>ORDER BY</code>. The cost columns come from correlated
+      subqueries rather than joins — see the SQL.
+    </p>
+  </div>
+  <a class="btn" href="{{ url_for('add_equipment') }}">+ Add equipment</a>
+</div>
+
+<section class="card">
+  <h2>Search and filter</h2>
+  <form method="get" action="{{ url_for('equipment') }}">
+    <div class="form-row">
+      <div class="field">
+        <label for="search">Search</label>
+        <input type="text" name="search" id="search" value="{{ filters.search }}"
+               placeholder="name, make, model or serial">
+      </div>
+      <div class="field">
+        <label for="equipment_type">Type</label>
+        <select name="equipment_type" id="equipment_type">
+          <option value="">All types</option>
+          {% for t in equipment_types %}
+            <option value="{{ t }}" {{ 'selected' if filters.equipment_type == t }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select name="status" id="status">
+          <option value="">Any status</option>
+          {% for s in equipment_statuses %}
+            <option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <input type="hidden" name="sort" value="{{ filters.sort }}">
+    <input type="hidden" name="dir" value="{{ filters.dir }}">
+    <div class="actions">
+      <button class="btn" type="submit">Apply</button>
+      <a class="btn btn-secondary" href="{{ url_for('equipment') }}">Clear</a>
+      <button class="sql-toggle" type="button" data-sql-toggle="sql-eq">Show SQL</button>
+    </div>
+  </form>
+  <pre class="sql" id="sql-eq" hidden>{{ executed_sql }}
+
+-- bound parameters: {{ params }}</pre>
+</section>
+
+<section class="card">
+  <h2>
+    {{ summary.n }} machine{{ '' if summary.n == 1 else 's' }}
+    <span class="muted" style="font-weight:400;font-size:14px">
+      repairs {{ summary.repair_total | money }} · service {{ summary.maintenance_total | money }}
+    </span>
+  </h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ sort_link('name', 'Equipment') }}</th>
+          <th>{{ sort_link('type', 'Type') }}</th>
+          <th>{{ sort_link('manufacturer', 'Manufacturer') }}</th>
+          <th>Model</th>
+          <th class="num">{{ sort_link('year', 'Year') }}</th>
+          <th>{{ sort_link('status', 'Status') }}</th>
+          <th class="num">{{ sort_link('repairs', 'Repairs') }}</th>
+          <th class="num">{{ sort_link('repair_cost', 'Repair cost') }}</th>
+          <th class="num">Service cost</th>
+          <th class="num">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>
+              <a href="{{ url_for('equipment_detail', equipment_id=row.equipment_id) }}"><strong>{{ row.name }}</strong></a>
+              {% if row.serial_number %}<div class="muted" style="font-size:12px">SN {{ row.serial_number }}</div>{% endif %}
+            </td>
+            <td>{{ row.equipment_type }}</td>
+            <td>{{ row.manufacturer }}</td>
+            <td>{{ row.model or '—' }}</td>
+            <td class="num">{{ row.year or '—' }}</td>
+            <td>
+              <span class="badge {{ 'badge-ok' if row.status == 'Operational'
+                                    else ('badge-err' if row.status in ['Needs Repair','Out of Service']
+                                    else 'badge-neutral') }}">{{ row.status }}</span>
+            </td>
+            <td class="num">{{ row.repair_count }}</td>
+            <td class="num">{{ row.total_repair_cost | money }}</td>
+            <td class="num">{{ row.total_maintenance_cost | money }}</td>
+            <td class="num">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('equipment_detail', equipment_id=row.equipment_id) }}">Open</a>
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('edit_equipment', equipment_id=row.equipment_id) }}">Edit</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="10" class="empty">No equipment matches those filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

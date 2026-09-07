@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}About Project{% endblock %}
+
+{% block content %}
+<h1>FarmFix — Farm Equipment Repair &amp; Maintenance Tracker</h1>
+<p class="lede">
+  COMP 368 Database Systems · Project 1 — Southwest MN Hackathon Preparation ·
+  Southwest Minnesota State University. This page is the demonstration
+  cheat-sheet; the full academic write-up is in the <code>documentation/</code>
+  folder.
+</p>
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>Team</h2>
+    <ul class="tight">
+      <li><strong>Ayush Gaire</strong></li>
+      <li><strong>Ashish Gaire</strong></li>
+      <li><strong>AJ Rayamajhi</strong></li>
+    </ul>
+    <h3 style="margin-top:16px">Technology</h3>
+    <dl class="kv">
+      <dt>Database</dt><dd>SQLite3 {{ sqlite_version }} — one file, <code>database/farmfix.db</code></dd>
+      <dt>Backend</dt><dd>Python 3 + Flask, using the standard-library <code>sqlite3</code> module</dd>
+      <dt>Frontend</dt><dd>HTML (Jinja2 templates), hand-written CSS, a little vanilla JavaScript</dd>
+      <dt>No ORM</dt><dd>Every query is SQL we wrote ourselves, so it can be read aloud and explained</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Problem</h2>
+    <p style="margin-top:0">
+      Farmers and mechanics rely on memory, notebooks and glovebox receipts to
+      remember when a tractor was last serviced or what was done to it. Records
+      get lost, repairs get repeated, and nobody can say which machine is costing
+      the most to keep running.
+    </p>
+    <h3>Solution</h3>
+    <p style="margin-bottom:0">
+      FarmFix stores equipment, repairs and service records in one relational
+      SQLite3 database, so a machine's full history is a query rather than a
+      search through a drawer. Because the costs are computed from the records
+      every time a page loads, they can never drift out of date.
+    </p>
+  </section>
+</div>
+
+<section class="card">
+  <h2>How SQLite3 is used</h2>
+  <p style="margin-top:0">
+    SQLite3 is an <em>embedded</em> database: the whole database is a single file
+    on disk and the engine runs inside the application process. There is no server
+    to install, no port, no username and no password. Flask opens it with
+    <code>sqlite3.connect("database/farmfix.db")</code> once per request and
+    immediately issues <code>PRAGMA foreign_keys = ON</code>, because SQLite ships
+    with foreign-key enforcement switched <strong>off</strong> for backwards
+    compatibility — and the setting lives on the connection, not in the file.
+  </p>
+  <p class="muted" style="margin-bottom:0">
+    Nothing here is faked with localStorage, a JSON file, or a hosted database.
+    Delete <code>database/farmfix.db</code> and the application has no data at all
+    — it refuses to start and tells you to run <code>python database/init_db.py</code>.
+  </p>
+</section>
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>Database tables</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Table</th><th>Primary key</th><th class="num">Rows now</th><th>Holds</th></tr></thead>
+        <tbody>
+          <tr><td><code>equipment</code></td><td><code>equipment_id</code></td><td class="num">{{ counts.equipment }}</td>
+              <td>One machine: name, type, make, model, year, serial number, status</td></tr>
+          <tr><td><code>repairs</code></td><td><code>repair_id</code></td><td class="num">{{ counts.repairs }}</td>
+              <td>One thing that broke and what was done about it</td></tr>
+          <tr><td><code>maintenance</code></td><td><code>maintenance_id</code></td><td class="num">{{ counts.maintenance }}</td>
+              <td>One planned service, and when the next one is due</td></tr>
+          <tr><td><code>mechanics</code></td><td><code>mechanic_id</code></td><td class="num">{{ counts.mechanics }}</td>
+              <td>Lookup table so a mechanic's name is stored once, not per repair</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size:13.5px;margin-bottom:0">
+      Live counts, read from the database when this page loaded.
+      <a href="{{ url_for('schema') }}">Full column detail on the Schema page →</a>
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Database relationships</h2>
+    <ul class="tight">
+      <li><strong>Equipment 1 → 0..* Repair</strong> — <code>repairs.equipment_id</code>
+          is a <code>NOT NULL</code> foreign key, <code>ON DELETE CASCADE</code>.
+          A repair cannot exist without the machine it was done on.</li>
+      <li><strong>Equipment 1 → 0..* Maintenance</strong> —
+          <code>maintenance.equipment_id</code>, same rule.</li>
+      <li><strong>Mechanic 0..1 → 0..* Repair</strong> —
+          <code>repairs.mechanic_id</code> is <strong>nullable</strong>,
+          <code>ON DELETE SET NULL</code>. A repair the operator did in-house has
+          no mechanic on record, and removing a mechanic must not delete the
+          repairs they worked on.</li>
+    </ul>
+    <p class="muted" style="font-size:13.5px;margin-bottom:0">
+      Both core associations are one-to-many, so the foreign key goes on the
+      "many" side and no junction table is needed — a junction table is the right
+      answer to a many-to-many and the wrong answer to a one-to-many.
+    </p>
+  </section>
+</div>
+
+<section class="card">
+  <h2>UML class diagram</h2>
+  <p style="margin-top:0">
+    The conceptual design is a UML <em>class</em> diagram (not an ER diagram),
+    showing classes, attributes, identifiers, named associations and
+    multiplicities. Files: <code>uml/uml-diagram.png</code>,
+    <code>.pdf</code>, <code>.svg</code>, with Mermaid and PlantUML source in
+    <code>uml/uml-source.md</code>.
+  </p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Class</th><th>Identifier</th><th>Becomes</th></tr></thead>
+      <tbody>
+        <tr><td><code>Equipment</code></td><td><code>equipment_id</code></td><td>table <code>equipment</code>, PK</td></tr>
+        <tr><td><code>Repair</code></td><td><code>repair_id</code></td><td>table <code>repairs</code>, PK + FK <code>equipment_id</code>, FK <code>mechanic_id</code></td></tr>
+        <tr><td><code>Maintenance</code></td><td><code>maintenance_id</code></td><td>table <code>maintenance</code>, PK + FK <code>equipment_id</code></td></tr>
+        <tr><td><code>Mechanic</code></td><td><code>mechanic_id</code></td><td>table <code>mechanics</code>, PK</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>CRUD — where to find each operation</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Operation</th><th>In the app</th><th>SQL executed</th></tr></thead>
+      <tbody>
+        <tr><td><strong>CREATE</strong></td>
+            <td><a href="{{ url_for('add_equipment') }}">Add equipment</a>,
+                <a href="{{ url_for('add_repair') }}">Log repair</a>,
+                <a href="{{ url_for('add_maintenance') }}">Log service</a>, Add mechanic, CSV import</td>
+            <td><code>INSERT INTO equipment / repairs / maintenance / mechanics (...) VALUES (...)</code></td></tr>
+        <tr><td><strong>READ</strong></td>
+            <td>Dashboard, Equipment, Equipment detail, Repairs, Maintenance, <a href="{{ url_for('reports') }}">Reports</a></td>
+            <td><code>SELECT ... JOIN ... WHERE ... GROUP BY ... ORDER BY ...</code></td></tr>
+        <tr><td><strong>UPDATE</strong></td>
+            <td>Edit buttons on equipment, repairs and service records</td>
+            <td><code>UPDATE repairs SET ... WHERE repair_id = ?</code></td></tr>
+        <tr><td><strong>DELETE</strong></td>
+            <td>Delete buttons on all four tables</td>
+            <td><code>DELETE FROM equipment WHERE equipment_id = ?</code> (cascades to history)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Important SQL queries</h2>
+
+  <h3>1. Equipment repair history — the JOIN the assignment asks for</h3>
+  <pre class="sql">SELECT equipment.name,
+       repairs.repair_date,
+       repairs.problem,
+       repairs.cost
+FROM equipment
+JOIN repairs ON equipment.equipment_id = repairs.equipment_id
+ORDER BY repairs.repair_date DESC;</pre>
+
+  <h3 style="margin-top:18px">2. Repair count and cost per machine — JOIN + GROUP BY + aggregates</h3>
+  <pre class="sql">SELECT e.name,
+       COUNT(r.repair_id)       AS repairs,
+       COALESCE(SUM(r.cost), 0) AS total,
+       COALESCE(AVG(r.cost), 0) AS average,
+       COALESCE(MAX(r.cost), 0) AS dearest
+FROM equipment e
+LEFT JOIN repairs r ON r.equipment_id = e.equipment_id
+GROUP BY e.equipment_id, e.name
+ORDER BY total DESC;</pre>
+
+  <h3 style="margin-top:18px">3. Lifetime cost per machine — two child tables, done safely</h3>
+  <pre class="sql">SELECT e.name,
+       (SELECT COALESCE(SUM(r.cost),0) FROM repairs r
+         WHERE r.equipment_id = e.equipment_id)
+     + (SELECT COALESCE(SUM(m.cost),0) FROM maintenance m
+         WHERE m.equipment_id = e.equipment_id) AS lifetime_cost
+FROM equipment e
+ORDER BY lifetime_cost DESC;</pre>
+  <p class="muted" style="font-size:13.5px">
+    Correlated subqueries, <em>not</em> two LEFT JOINs. Joining both child tables
+    in one query multiplies the rows — a machine with 3 repairs and 3 services
+    produces 9 rows, and every <code>SUM</code> comes out three times too high.
+    This is the bug written up in <code>documentation/DEBUGGING.md</code>.
+  </p>
+
+  <h3 style="margin-top:18px">4. HAVING — filtering groups instead of rows</h3>
+  <pre class="sql">SELECT e.name, COUNT(*) AS repairs, SUM(r.cost) AS total
+FROM repairs r
+JOIN equipment e ON e.equipment_id = r.equipment_id
+GROUP BY e.equipment_id, e.name
+HAVING COUNT(*) &gt;= 2 AND SUM(r.cost) &gt; 500
+ORDER BY total DESC;</pre>
+
+  <h3 style="margin-top:18px">5. Recent activity across two tables — UNION ALL</h3>
+  <pre class="sql">SELECT 'Repair' AS kind, r.repair_date AS on_date, r.problem AS summary, r.cost
+FROM repairs r
+UNION ALL
+SELECT 'Service', m.service_date, m.service_type, m.cost
+FROM maintenance m
+ORDER BY on_date DESC
+LIMIT 8;</pre>
+
+  <p class="muted" style="font-size:13.5px;margin-bottom:0">
+    Every query in the app can be revealed in place with the “Show SQL” buttons on
+    the Dashboard, Equipment, Equipment detail, Repairs, Maintenance, Mechanics
+    and Reports pages.
+  </p>
+</section>
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>AI-assisted learning</h2>
+    <p style="margin-top:0">
+      We used an AI assistant to learn SQLite3, then checked every answer against
+      the real database instead of trusting it. Six interactions are documented in
+      <code>documentation/AI_LEARNING_EVIDENCE.md</code>, including ones where the
+      AI was wrong:
+    </p>
+    <ul class="tight">
+      <li><strong>Foreign keys look enforced but are not</strong> until every connection runs <code>PRAGMA foreign_keys = ON</code>.</li>
+      <li><strong>Two LEFT JOINs silently tripled our cost totals</strong> — valid SQL, wrong numbers, no error message.</li>
+      <li><strong>An INNER JOIN hid the in-house repairs</strong>, because their <code>mechanic_id</code> is NULL.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Testing</h2>
+    <p style="margin-top:0">
+      Automated test cases run against a temporary copy of the database and cover
+      insertion, update, delete cascade, <code>ON DELETE SET NULL</code>,
+      foreign-key rejection, CHECK and UNIQUE constraints, JOIN/GROUP BY
+      correctness, filtering, sorting and CSV import validation.
+    </p>
+    <pre class="sql">$ python -m pytest tests/ -v</pre>
+    <p class="muted" style="font-size:13.5px;margin-bottom:0">
+      Expected vs actual for every case: <code>documentation/TESTING.md</code>.
+      Real bugs found and fixed: <code>documentation/DEBUGGING.md</code>.
+    </p>
+  </section>
+</div>
+{% endblock %}

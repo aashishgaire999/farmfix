@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Mechanics{% endblock %}
+
+{% block content %}
+<h1>Mechanics</h1>
+<p class="lede">
+  A small lookup table. Without it, the mechanic's name would be free text on
+  every repair row, and “Dale Hutchins”, “Dale H.” and “dale hutchins” would count
+  as three different people — which is exactly what breaks the spending report
+  below. Storing the name once and referencing it by id is the third-normal-form
+  fix.
+</p>
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>Add a mechanic</h2>
+    <form method="post">
+      <div class="form-row">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" name="name" id="name" required placeholder="e.g. Dale Hutchins">
+        </div>
+        <div class="field">
+          <label for="shop">Shop</label>
+          <input type="text" name="shop" id="shop" placeholder="e.g. Hutchins Ag Repair">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="phone">Phone</label>
+          <input type="tel" name="phone" id="phone" placeholder="507-555-0142">
+        </div>
+        <div class="field">
+          <label for="specialty">Specialty</label>
+          <input type="text" name="specialty" id="specialty" placeholder="e.g. Hydraulics">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">Add mechanic</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>In-house work</h2>
+    <p style="margin-top:0">
+      <strong>{{ inhouse.n }}</strong> repair{{ '' if inhouse.n == 1 else 's' }},
+      <strong>{{ inhouse.total | money }}</strong> in parts — jobs the operator did
+      themselves, stored with <code>mechanic_id IS NULL</code>.
+    </p>
+    <p class="muted" style="margin-bottom:0;font-size:13.5px">
+      This is why the association is <code>0..1</code> and not <code>1</code> in the
+      UML, and why every screen that shows a mechanic name uses a
+      <code>LEFT JOIN</code>. An inner join would drop these {{ inhouse.n }} repairs
+      from the history and from every cost total.
+      <a href="{{ url_for('repairs', mechanic_id='none') }}">See them →</a>
+    </p>
+  </section>
+</div>
+
+<section class="card">
+  <h2>
+    Mechanics on file ({{ rows | length }})
+    <button class="sql-toggle" data-sql-toggle="sql-mech">Show SQL</button>
+  </h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Shop</th><th>Phone</th><th>Specialty</th>
+            <th class="num">Repairs</th><th class="num">Total billed</th>
+            <th class="num">Average</th><th>Last seen</th><th class="num">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for m in rows %}
+          <tr>
+            <td><strong>{{ m.name }}</strong></td>
+            <td>{{ m.shop or '—' }}</td>
+            <td class="muted">{{ m.phone or '—' }}</td>
+            <td>{{ m.specialty or '—' }}</td>
+            <td class="num">{{ m.repair_count }}</td>
+            <td class="num">{{ m.total_billed | money }}</td>
+            <td class="num">{{ m.average_repair | money }}</td>
+            <td>{{ m.last_seen | nice_date if m.last_seen else '—' }}</td>
+            <td class="num">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('repairs', mechanic_id=m.mechanic_id) }}">Repairs</a>
+              <form class="inline" method="post" action="{{ url_for('delete_mechanic', mechanic_id=m.mechanic_id) }}"
+                    data-confirm="Remove {{ m.name }}? Their {{ m.repair_count }} repair record(s) are KEPT and will show as in-house (ON DELETE SET NULL).">
+                <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="9" class="empty">No mechanics on file.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="spec-line" style="margin:12px 0 0">
+    <code>LEFT JOIN</code> again, for the opposite reason: it keeps a mechanic who
+    has not worked on anything yet, showing 0 repairs rather than disappearing.
+    Removing a mechanic uses <code>ON DELETE SET NULL</code>, not
+    <code>CASCADE</code> — the repair still happened and still cost money, so the
+    record survives with no mechanic attached.
+  </p>
+  <pre class="sql" id="sql-mech" hidden>{{ sql }}</pre>
+</section>
+{% endblock %}

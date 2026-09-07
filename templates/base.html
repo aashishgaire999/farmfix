@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FarmFix{% endblock %} · FarmFix</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="{{ url_for('dashboard') }}">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6.5" cy="17" r="3.5"></circle>
+            <circle cx="17.5" cy="17.5" r="2.5"></circle>
+            <path d="M3 13V7h5l2 4h5V6h4v8"></path>
+          </svg>
+        </span>
+        <span>
+          <strong>FarmFix</strong>
+          <small>Equipment Repair &amp; Maintenance Tracker</small>
+        </span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">Menu</button>
+      <nav id="mainNav">
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
+        <a href="{{ url_for('equipment') }}" class="{{ 'active' if request.endpoint in ['equipment','equipment_detail','add_equipment','edit_equipment'] }}">Equipment</a>
+        <a href="{{ url_for('repairs') }}" class="{{ 'active' if request.endpoint in ['repairs','add_repair','edit_repair'] }}">Repairs</a>
+        <a href="{{ url_for('maintenance') }}" class="{{ 'active' if request.endpoint in ['maintenance','add_maintenance','edit_maintenance'] }}">Maintenance</a>
+        <a href="{{ url_for('mechanics') }}" class="{{ 'active' if request.endpoint == 'mechanics' }}">Mechanics</a>
+        <a href="{{ url_for('reports') }}" class="{{ 'active' if request.endpoint == 'reports' }}">Reports</a>
+        <a href="{{ url_for('import_csv') }}" class="{{ 'active' if request.endpoint == 'import_csv' }}">Import CSV</a>
+        <a href="{{ url_for('schema') }}" class="{{ 'active' if request.endpoint == 'schema' }}">Schema</a>
+        <a href="{{ url_for('about') }}" class="{{ 'active' if request.endpoint == 'about' }}">About Project</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="wrap site-footer">
+    <p><strong>FarmFix</strong> — COMP 368 Database Systems, Project 1 ·
+      Ayush Gaire, Ashish Gaire, AJ Rayamajhi · Southwest Minnesota State University</p>
+    <p class="muted">Backed by a real SQLite3 database file (<code>database/farmfix.db</code>).
+      Every figure on this site comes from a SQL query run when the page loaded.</p>
+  </footer>
+
+  <script>
+    document.getElementById('navToggle').addEventListener('click', function () {
+      document.getElementById('mainNav').classList.toggle('open');
+    });
+    document.querySelectorAll('[data-sql-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.getAttribute('data-sql-toggle'));
+        if (!target) return;
+        if (target.hasAttribute('hidden')) { target.removeAttribute('hidden'); btn.textContent = 'Hide SQL'; }
+        else { target.setAttribute('hidden', ''); btn.textContent = 'Show SQL'; }
+      });
+    });
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        if (!window.confirm(form.getAttribute('data-confirm'))) e.preventDefault();
+      });
+    });
+  </script>
+</body>
+</html>

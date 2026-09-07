@@ -1,0 +1,10 @@
+name,equipment_type,manufacturer,model,year,serial_number,purchase_date,status
+Deutz-Fahr 6135C,Tractor,Deutz-Fahr,6135C,2023,DF6135C23R00912,2023-01-19,Operational
+,Tractor,Kubota,M7-172,2021,KBM7172X21P00455,2021-04-02,Operational
+Krone BiG M 450,Harvester,Krone,BiG M 450,2019,KRBM450Y19T00233,2019-05-15,Operational
+Bobcat S650,Loader,Bobcat,S650,nineteen,BC650S19W00877,2019-06-01,Operational
+Case IH Magnum 340,Tractor,Case IH,Magnum 340,2020,YHG6150C7L045221,2020-08-11,Operational
+Claas Jaguar 960,Other,Claas,Jaguar 960,2021,CLJ960Z21V00611,08/11/2021,Operational
+Kinze 3600 Planter,Planter,Kinze,3600,2017,KZ3600N17H00520,2017-03-22,Broken Down
+John Deere 8R 370,Tractor,,8R 370,2024,JD8R370A24C00188,2024-02-14,Operational
+Kuhn GA 8131 Tedder,Tillage,Kuhn,GA 8131,2022,KHGA8131L22D00909,2022-06-30,Operational

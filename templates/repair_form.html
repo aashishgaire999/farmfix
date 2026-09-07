@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Log repair' if mode == 'add' else 'Edit repair' }}{% endblock %}
+
+{% block content %}
+<h1>{{ 'Log a repair' if mode == 'add' else 'Edit repair #' ~ repair_id }}</h1>
+<p class="lede">
+  {% if mode == 'add' %}
+    Saving runs <code>INSERT INTO repairs (equipment_id, mechanic_id, ...)</code>.
+    The machine dropdown supplies the foreign key <code>equipment_id</code>, and
+    SQLite refuses the row if that machine does not exist.
+  {% else %}
+    Saving runs <code>UPDATE repairs SET ... WHERE repair_id = ?</code>.
+  {% endif %}
+</p>
+
+<section class="card" style="max-width:820px">
+  <form method="post">
+    <div class="form-row">
+      <div class="field">
+        <label for="equipment_id">Machine <span class="muted">(foreign key → equipment)</span></label>
+        <select name="equipment_id" id="equipment_id" required>
+          <option value="">Choose a machine…</option>
+          {% for e in equipment_list %}
+            <option value="{{ e.equipment_id }}"
+              {{ 'selected' if item['equipment_id'] and item['equipment_id']|string == e.equipment_id|string }}>
+              {{ e.name }}{% if e.model %} ({{ e.manufacturer }} {{ e.model }}){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="hint">Required — a repair cannot exist without a machine (multiplicity 1).</div>
+      </div>
+      <div class="field">
+        <label for="mechanic_id">Mechanic <span class="muted">(optional foreign key → mechanics)</span></label>
+        <select name="mechanic_id" id="mechanic_id">
+          <option value="">In-house — no mechanic</option>
+          {% for m in mechanics %}
+            <option value="{{ m.mechanic_id }}"
+              {{ 'selected' if item['mechanic_id'] and item['mechanic_id']|string == m.mechanic_id|string }}>
+              {{ m.name }}{% if m.shop %} — {{ m.shop }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="hint">Leave blank if you did the job yourself — stored as NULL (multiplicity 0..1).</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="repair_date">Repair date</label>
+        <input type="date" name="repair_date" id="repair_date" required
+               value="{{ item['repair_date'] or today_iso }}">
+      </div>
+      <div class="field">
+        <label for="cost">Cost (USD)</label>
+        <input type="number" name="cost" id="cost" step="0.01" min="0"
+               value="{{ item['cost'] or '' }}" placeholder="0.00">
+        <div class="hint">Stored as REAL, with <code>CHECK (cost &gt;= 0)</code>. Blank counts as $0.00.</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="problem">Problem</label>
+      <input type="text" name="problem" id="problem" required
+             value="{{ item['problem'] or '' }}"
+             placeholder="e.g. Front loader dropping under load">
+      <div class="hint">Required. What went wrong, in the words you would use.</div>
+    </div>
+
+    <div class="field">
+      <label for="repair_description">What was done</label>
+      <textarea name="repair_description" id="repair_description"
+                placeholder="e.g. Replaced leaking hydraulic hose and both fittings.">{{ item['repair_description'] or '' }}</textarea>
+    </div>
+
+    <div class="field">
+      <label for="notes">Notes</label>
+      <textarea name="notes" id="notes"
+                placeholder="Anything worth remembering next season.">{{ item['notes'] or '' }}</textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn" type="submit">{{ 'Save to database' if mode == 'add' else 'Update record' }}</button>
+      <a class="btn btn-secondary" href="{{ url_for('repairs') }}">Cancel</a>
+    </div>
+  </form>
+
+  {% if mode == 'edit' %}
+    <hr style="border:none;border-top:1px solid var(--line);margin:18px 0 14px">
+    <form method="post" action="{{ url_for('delete_repair', repair_id=repair_id) }}"
+          data-confirm="Delete this repair record? This cannot be undone.">
+      <button class="btn btn-danger" type="submit">Delete this repair</button>
+      <span class="hint" style="margin-left:8px">Runs <code>DELETE FROM repairs WHERE repair_id = {{ repair_id }}</code>.</span>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

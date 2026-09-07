@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Schema{% endblock %}
+
+{% block content %}
+<h1>Database schema inspection</h1>
+<p class="lede">
+  Nothing on this page is hard-coded. It is built live from SQLite's own
+  metadata: <code>sqlite_master</code> for the table list and the original
+  <code>CREATE</code> statements, <code>PRAGMA table_info</code> for columns,
+  <code>PRAGMA foreign_key_list</code> for relationships,
+  <code>PRAGMA index_list</code> for indexes, and
+  <code>PRAGMA foreign_key_check</code> to confirm referential integrity.
+</p>
+
+<div class="grid grid-4" style="margin-bottom:20px">
+  <div class="kpi accent">
+    <div class="label">SQLite version</div>
+    <div class="value">{{ sqlite_version }}</div>
+    <div class="sub">sqlite3.sqlite_version</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Tables</div>
+    <div class="value">{{ tables | length }}</div>
+    <div class="sub">excluding sqlite_* internals</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Foreign keys</div>
+    <div class="value">{{ 'ON' if fk_on else 'OFF' }}</div>
+    <div class="sub">PRAGMA foreign_keys</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Database file</div>
+    <div class="value">{{ db_size_kb }} KB</div>
+    <div class="sub">database/farmfix.db</div>
+  </div>
+</div>
+
+{% if fk_problems %}
+  <div class="flash flash-error">PRAGMA foreign_key_check found {{ fk_problems | length }} orphaned row(s).</div>
+{% else %}
+  <div class="flash flash-ok">PRAGMA foreign_key_check returned no rows — every foreign key points at a row that exists.</div>
+{% endif %}
+
+{% for t in tables %}
+  <section class="card">
+    <h2>
+      {{ t.name }}
+      <span class="muted" style="font-weight:400;font-size:14px">{{ t.row_count }} row{{ '' if t.row_count == 1 else 's' }}</span>
+    </h2>
+
+    <h3>Columns <span class="muted" style="font-weight:400">— PRAGMA table_info({{ t.name }})</span></h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th class="num">#</th><th>Column</th><th>Declared type</th><th>Not null</th><th>Default</th><th>Primary key</th></tr></thead>
+        <tbody>
+          {% for c in t.columns %}
+            <tr>
+              <td class="num">{{ c['cid'] }}</td>
+              <td><strong>{{ c['name'] }}</strong></td>
+              <td><code>{{ c['type'] or '(none)' }}</code></td>
+              <td>{{ 'YES' if c['notnull'] else '—' }}</td>
+              <td class="muted">{{ c['dflt_value'] if c['dflt_value'] is not none else '—' }}</td>
+              <td>{% if c['pk'] %}<span class="badge badge-ok">PK</span>{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:16px">Foreign keys <span class="muted" style="font-weight:400">— PRAGMA foreign_key_list({{ t.name }})</span></h3>
+    {% if t.foreign_keys %}
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Column</th><th>References</th><th>On delete</th><th>On update</th></tr></thead>
+          <tbody>
+            {% for fk in t.foreign_keys %}
+              <tr>
+                <td><code>{{ fk['from'] }}</code></td>
+                <td><code>{{ fk['table'] }}.{{ fk['to'] }}</code></td>
+                <td><span class="badge {{ 'badge-err' if fk['on_delete'] == 'CASCADE' else 'badge-warn' }}">{{ fk['on_delete'] }}</span></td>
+                <td>{{ fk['on_update'] }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">None — this is a parent table.</p>
+    {% endif %}
+
+    {% if t.indexes %}
+      <h3 style="margin-top:16px">Indexes <span class="muted" style="font-weight:400">— PRAGMA index_list({{ t.name }})</span></h3>
+      <div class="pill-row">
+        {% for ix in t.indexes %}
+          <span class="badge {{ 'badge-ok' if ix['unique'] else 'badge-neutral' }}">
+            {{ ix['name'] }}{{ ' (unique)' if ix['unique'] }}
+          </span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <h3 style="margin-top:16px">CREATE statement <span class="muted" style="font-weight:400">— sqlite_master.sql</span></h3>
+    <pre class="sql">{{ t.ddl }}</pre>
+  </section>
+{% endfor %}
+
+<section class="card">
+  <h2>Doing the same thing from the command line</h2>
+  <p class="muted" style="margin-top:0">
+    Everything above is also available in the <code>sqlite3</code> shell, which is
+    how we checked queries while building the app:
+  </p>
+  <pre class="sql">$ sqlite3 database/farmfix.db
+sqlite&gt; .tables                        -- list tables
+sqlite&gt; .schema repairs                -- show one table's DDL
+sqlite&gt; PRAGMA table_info(repairs);    -- columns, types, PK flags
+sqlite&gt; PRAGMA foreign_key_list(repairs);
+sqlite&gt; PRAGMA foreign_keys = ON;      -- must be set per connection
+sqlite&gt; PRAGMA foreign_key_check;      -- should return nothing
+sqlite&gt; .headers on
+sqlite&gt; .mode column
+sqlite&gt; SELECT e.name, COUNT(*) AS jobs, SUM(r.cost) AS spent
+   ...&gt; FROM equipment e JOIN repairs r ON e.equipment_id = r.equipment_id
+   ...&gt; GROUP BY e.equipment_id ORDER BY spent DESC;
+sqlite&gt; .quit</pre>
+</section>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<h1>Reports &amp; insights</h1>
+<p class="lede">
+  Eight read-only queries that answer questions the raw lists cannot: which
+  machine is bleeding money, where the routine spending goes, who is doing the
+  work, and what is due next. Each panel has a <strong>Show SQL</strong> button
+  revealing the exact statement that produced it.
+</p>
+
+<section class="card">
+  <h2>
+    {{ lifetime.title }}
+    <button class="sql-toggle" data-sql-toggle="sql-lifetime">Show SQL</button>
+  </h2>
+  <p class="spec-line">{{ lifetime.blurb }}</p>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Machine</th><th class="num">Repairs</th><th class="num">Repair cost</th>
+            <th class="num">Services</th><th class="num">Service cost</th>
+            <th class="num">Lifetime total</th><th>Share</th></tr>
+      </thead>
+      <tbody>
+        {% for row in lifetime.rows %}
+          <tr>
+            <td><strong>{{ row.label }}</strong></td>
+            <td class="num">{{ row.repair_n }}</td>
+            <td class="num">{{ row.repair_total | money }}</td>
+            <td class="num">{{ row.service_n }}</td>
+            <td class="num">{{ row.service_total | money }}</td>
+            <td class="num"><strong>{{ row.total | money }}</strong></td>
+            <td><div class="bar amber"><span style="width: {{ (row.total / lifetime.top * 100) | round(1) }}%"></span></div></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="empty">No equipment registered.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <pre class="sql" id="sql-lifetime" hidden>{{ lifetime.sql }}</pre>
+</section>
+
+{% for key, r in grouped.items() %}
+  <section class="card">
+    <h2>
+      {{ r.title }}
+      <button class="sql-toggle" data-sql-toggle="sql-{{ key }}">Show SQL</button>
+    </h2>
+    <p class="spec-line">{{ r.blurb }}</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Group</th><th class="num">Count</th><th class="num">Total</th>
+              <th class="num">Average</th><th class="num">Min</th><th class="num">Max</th><th>Share</th></tr>
+        </thead>
+        <tbody>
+          {% for row in r.rows %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="num">{{ row.n }}</td>
+              <td class="num"><strong>{{ row.total | money }}</strong></td>
+              <td class="num">{{ row.average | money }}</td>
+              <td class="num">{{ row.smallest | money }}</td>
+              <td class="num">{{ row.largest | money }}</td>
+              <td><div class="bar"><span style="width: {{ (row.total / r.top * 100) | round(1) }}%"></span></div></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="empty">No rows returned.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <pre class="sql" id="sql-{{ key }}" hidden>{{ r.sql }}</pre>
+  </section>
+{% endfor %}
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>
+      Five most recent repairs
+      <button class="sql-toggle" data-sql-toggle="sql-recent">Show SQL</button>
+    </h2>
+    <p class="spec-line">
+      A join with <code>ORDER BY repair_date DESC LIMIT 5</code> and no grouping —
+      the plainest useful join in the project.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Machine</th><th>Problem</th><th>Mechanic</th><th class="num">Cost</th></tr></thead>
+        <tbody>
+          {% for row in recent_repairs %}
+            <tr>
+              <td>{{ row.repair_date | nice_date }}</td>
+              <td>{{ row.equipment }}</td>
+              <td>{{ row.problem }}</td>
+              <td class="muted">{{ row.mechanic }}</td>
+              <td class="num"><strong>{{ row.cost | money }}</strong></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="empty">No repairs recorded.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <pre class="sql" id="sql-recent" hidden>{{ recent_sql }}</pre>
+  </section>
+
+  <section class="card">
+    <h2>
+      Service schedule
+      <button class="sql-toggle" data-sql-toggle="sql-due">Show SQL</button>
+    </h2>
+    <p class="spec-line">
+      <code>WHERE next_service_date IS NOT NULL</code> then
+      <code>ORDER BY next_service_date ASC</code> — the soonest job first.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Due</th><th>Machine</th><th>Service</th><th>Last done</th></tr></thead>
+        <tbody>
+          {% for row in due %}
+            <tr class="{{ 'overdue' if row.overdue }}">
+              <td><strong>{{ row.next_service_date | nice_date }}</strong>
+                {% if row.overdue %}<span class="badge badge-err">Overdue</span>{% endif %}
+              </td>
+              <td>{{ row.equipment }}</td>
+              <td>{{ row.service_type }}</td>
+              <td class="muted">{{ row.service_date | nice_date }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="empty">Nothing scheduled.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <pre class="sql" id="sql-due" hidden>{{ due_sql }}</pre>
+  </section>
+</div>
+{% endblock %}

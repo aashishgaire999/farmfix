@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Maintenance{% endblock %}
+
+{% macro sort_link(key, label) -%}
+  {% set next_dir = 'asc' if (filters.sort == key and filters.dir == 'desc') else 'desc' %}
+  <a href="{{ url_for('maintenance', equipment_id=filters.equipment_id,
+                      service_type=filters.service_type, due=filters.due,
+                      sort=key, dir=next_dir) }}">
+    {{ label }}{% if filters.sort == key %}{{ ' ▲' if filters.dir == 'asc' else ' ▼' }}{% endif %}
+  </a>
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Maintenance</h1>
+    <p class="lede">
+      Planned service, as opposed to things that broke. Each record can schedule
+      the next one; <code>next_service_date</code> is nullable, because a one-off
+      inspection does not always book a follow-up — and a <code>NULL</code> there
+      means "not scheduled", not "overdue".
+    </p>
+  </div>
+  <a class="btn" href="{{ url_for('add_maintenance') }}">+ Log service</a>
+</div>
+
+<section class="card">
+  <h2>Filter and sort</h2>
+  <form method="get" action="{{ url_for('maintenance') }}">
+    <div class="form-row">
+      <div class="field">
+        <label for="equipment_id">Machine</label>
+        <select name="equipment_id" id="equipment_id">
+          <option value="">All equipment</option>
+          {% for e in equipment_list %}
+            <option value="{{ e.equipment_id }}" {{ 'selected' if filters.equipment_id == e.equipment_id|string }}>{{ e.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="service_type">Service type</label>
+        <select name="service_type" id="service_type">
+          <option value="">All types</option>
+          {% for t in service_types %}
+            <option value="{{ t }}" {{ 'selected' if filters.service_type == t }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="due">Follow-up</label>
+        <select name="due" id="due">
+          <option value="">Any</option>
+          <option value="overdue"   {{ 'selected' if filters.due == 'overdue' }}>Overdue</option>
+          <option value="scheduled" {{ 'selected' if filters.due == 'scheduled' }}>Scheduled ahead</option>
+          <option value="none"      {{ 'selected' if filters.due == 'none' }}>None scheduled (NULL)</option>
+        </select>
+      </div>
+    </div>
+    <input type="hidden" name="sort" value="{{ filters.sort }}">
+    <input type="hidden" name="dir" value="{{ filters.dir }}">
+    <div class="actions">
+      <button class="btn" type="submit">Apply filters</button>
+      <a class="btn btn-secondary" href="{{ url_for('maintenance') }}">Clear</a>
+      <button class="sql-toggle" type="button" data-sql-toggle="sql-maint">Show SQL</button>
+    </div>
+  </form>
+  <pre class="sql" id="sql-maint" hidden>{{ executed_sql }}
+
+-- bound parameters: {{ params }}</pre>
+</section>
+
+<section class="card">
+  <h2>
+    {{ summary.n }} service record{{ '' if summary.n == 1 else 's' }}
+    <span class="muted" style="font-weight:400;font-size:14px">
+      total {{ summary.total | money }} · average {{ summary.average | money }} ·
+      cheapest {{ summary.smallest | money }} · dearest {{ summary.largest | money }}
+    </span>
+  </h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ sort_link('date', 'Serviced') }}</th>
+          <th>{{ sort_link('equipment', 'Machine') }}</th>
+          <th>{{ sort_link('type', 'Type') }}</th>
+          <th>Description</th>
+          <th>{{ sort_link('next', 'Next due') }}</th>
+          <th class="num">{{ sort_link('cost', 'Cost') }}</th>
+          <th class="num">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in rows %}
+          <tr class="{{ 'overdue' if m.next_service_date and m.next_service_date < today }}">
+            <td>{{ m.service_date | nice_date }}</td>
+            <td><a href="{{ url_for('equipment_detail', equipment_id=m.equipment_id) }}">{{ m.equipment }}</a></td>
+            <td><span class="badge badge-neutral">{{ m.service_type }}</span></td>
+            <td>{{ m.description or '—' }}
+              {% if m.notes %}<div class="muted" style="font-size:12.5px">{{ m.notes }}</div>{% endif %}
+            </td>
+            <td>
+              {% if m.next_service_date %}
+                {{ m.next_service_date | nice_date }}
+                {% if m.next_service_date < today %}<span class="badge badge-err">Overdue</span>{% endif %}
+              {% else %}
+                <span class="muted">Not scheduled</span>
+              {% endif %}
+            </td>
+            <td class="num">{{ m.cost | money }}</td>
+            <td class="num">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('edit_maintenance', maintenance_id=m.maintenance_id) }}">Edit</a>
+              <form class="inline" method="post" action="{{ url_for('delete_maintenance', maintenance_id=m.maintenance_id) }}"
+                    data-confirm="Delete this service record? This runs a DELETE against SQLite and cannot be undone.">
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="empty">No service records match those filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

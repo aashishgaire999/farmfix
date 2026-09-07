@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<p class="lede">
+  Every number below is calculated by SQL against <code>database/farmfix.db</code>
+  at the moment this page loads — nothing is hard-coded and nothing is cached.
+  Aggregate functions produce the tiles, a <code>JOIN</code> with a date filter
+  finds the service that is due, and a <code>UNION ALL</code> merges repairs and
+  services into one activity feed.
+</p>
+
+<div class="grid grid-4" style="margin-bottom:18px">
+  <div class="kpi accent">
+    <div class="label">Equipment</div>
+    <div class="value">{{ counts.equipment_count }}</div>
+    <div class="sub">COUNT(*) FROM equipment</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Repairs logged</div>
+    <div class="value">{{ counts.repair_count }}</div>
+    <div class="sub">COUNT(*) FROM repairs</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Service records</div>
+    <div class="value">{{ counts.maintenance_count }}</div>
+    <div class="sub">COUNT(*) FROM maintenance</div>
+  </div>
+  <div class="kpi accent">
+    <div class="label">Mechanics on file</div>
+    <div class="value">{{ counts.mechanic_count }}</div>
+    <div class="sub">COUNT(*) FROM mechanics</div>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:20px">
+  <div class="kpi accent-amber">
+    <div class="label">Total repair cost</div>
+    <div class="value">{{ counts.total_repair_cost | money }}</div>
+    <div class="sub">SUM(cost) FROM repairs</div>
+  </div>
+  <div class="kpi accent-amber">
+    <div class="label">Total maintenance cost</div>
+    <div class="value">{{ counts.total_maintenance_cost | money }}</div>
+    <div class="sub">SUM(cost) FROM maintenance</div>
+  </div>
+  <div class="kpi accent-amber">
+    <div class="label">Combined spend</div>
+    <div class="value">{{ grand_total | money }}</div>
+    <div class="sub">repairs + maintenance</div>
+  </div>
+  <div class="kpi accent-amber">
+    <div class="label">Average repair</div>
+    <div class="value">{{ counts.avg_repair_cost | money }}</div>
+    <div class="sub">AVG(cost) · dearest {{ counts.max_repair_cost | money }}</div>
+  </div>
+</div>
+
+{% if overdue_count %}
+  <div class="flash flash-error" style="margin-bottom:20px">
+    {{ overdue_count }} service{{ 's are' if overdue_count != 1 else ' is' }} past due — see the table below.
+  </div>
+{% endif %}
+
+<div class="grid grid-2">
+  <section class="card">
+    <h2>
+      Service due
+      <button class="sql-toggle" data-sql-toggle="sql-upcoming">Show SQL</button>
+    </h2>
+    <p class="spec-line">
+      Anything scheduled on or before {{ horizon | nice_date }}. Records with no
+      follow-up date are excluded by <code>next_service_date IS NOT NULL</code> —
+      "not scheduled" is not the same as "due today".
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Due</th><th>Machine</th><th>Service</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for u in upcoming %}
+            <tr class="{{ 'overdue' if u.overdue }}">
+              <td><strong>{{ u.next_service_date | nice_date }}</strong></td>
+              <td><a href="{{ url_for('equipment_detail', equipment_id=u.equipment_id) }}">{{ u.equipment }}</a></td>
+              <td>{{ u.service_type }}</td>
+              <td>
+                {% if u.overdue %}
+                  <span class="badge badge-err">Overdue</span>
+                {% else %}
+                  <span class="badge badge-warn">Scheduled</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="empty">Nothing due in the next 45 days.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <pre class="sql" id="sql-upcoming" hidden>{{ sql_snippets.upcoming }}
+
+-- bound parameter: '{{ horizon }}'</pre>
+  </section>
+
+  <section class="card">
+    <h2>
+      Recent activity
+      <button class="sql-toggle" data-sql-toggle="sql-recent">Show SQL</button>
+    </h2>
+    <p class="spec-line">
+      Repairs and services live in two different tables. <code>UNION ALL</code>
+      stacks the two result sets so they can be sorted together as one feed.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Machine</th><th>Detail</th><th class="num">Cost</th></tr></thead>
+        <tbody>
+          {% for a in recent %}
+            <tr>
+              <td>{{ a.on_date | nice_date }}</td>
+              <td>
+                <span class="badge {{ 'badge-err' if a.kind == 'Repair' else 'badge-ok' }}">{{ a.kind }}</span>
+              </td>
+              <td><a href="{{ url_for('equipment_detail', equipment_id=a.equipment_id) }}">{{ a.equipment }}</a></td>
+              <td>{{ a.summary }}</td>
+              <td class="num">{{ a.cost | money }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="empty">No activity recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <pre class="sql" id="sql-recent" hidden>{{ sql_snippets.recent }}</pre>
+  </section>
+</div>
+
+<section class="card">
+  <h2>
+    Fleet status
+    <span>
+      <a class="btn btn-sm btn-secondary" href="{{ url_for('add_repair') }}">+ Log repair</a>
+      <a class="btn btn-sm btn-secondary" href="{{ url_for('add_maintenance') }}">+ Log service</a>
+      <a class="btn btn-sm" href="{{ url_for('add_equipment') }}">+ Add equipment</a>
+    </span>
+  </h2>
+  <div class="pill-row">
+    {% for s in statuses %}
+      <span class="badge {{ 'badge-ok' if s.label == 'Operational'
+                            else ('badge-err' if s.label in ['Needs Repair','Out of Service']
+                            else 'badge-neutral') }}">
+        {{ s.label }}: {{ s.n }}
+      </span>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin-bottom:0;font-size:13.5px">
+    <a href="{{ url_for('equipment') }}">Open the equipment register →</a> ·
+    <a href="{{ url_for('reports') }}">See cost reports →</a>
+  </p>
+</section>
+{% endblock %}

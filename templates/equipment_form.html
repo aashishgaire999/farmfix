@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Add equipment' if mode == 'add' else 'Edit equipment' }}{% endblock %}
+
+{% block content %}
+<h1>{{ 'Register equipment' if mode == 'add' else 'Edit ' ~ (item['name'] or 'equipment') }}</h1>
+<p class="lede">
+  {% if mode == 'add' %}
+    Saving runs one parameterised
+    <code>INSERT INTO equipment (...) VALUES (:name, :equipment_type, ...)</code>.
+    The serial number is <code>UNIQUE</code> in the database, so registering the
+    same machine twice is refused.
+  {% else %}
+    Saving runs <code>UPDATE equipment SET ... WHERE equipment_id = ?</code>.
+    The same validation rules apply as when the machine was first registered.
+  {% endif %}
+</p>
+
+<section class="card" style="max-width:820px">
+  <form method="post">
+    <div class="form-row">
+      <div class="field">
+        <label for="name">Equipment name</label>
+        <input type="text" name="name" id="name" maxlength="100" required
+               value="{{ item['name'] or '' }}" placeholder="e.g. John Deere 5075E">
+        <div class="hint">Required. What you actually call it around the yard.</div>
+      </div>
+      <div class="field">
+        <label for="equipment_type">Type</label>
+        <select name="equipment_type" id="equipment_type">
+          {% for t in equipment_types %}
+            <option value="{{ t }}" {{ 'selected' if item['equipment_type'] == t }}>{{ t }}</option>
+          {% endfor %}
+        </select>
+        <div class="hint">Limited by a CHECK constraint.</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="manufacturer">Manufacturer</label>
+        <input type="text" name="manufacturer" id="manufacturer" required
+               value="{{ item['manufacturer'] or '' }}" placeholder="e.g. John Deere">
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <input type="text" name="model" id="model"
+               value="{{ item['model'] or '' }}" placeholder="e.g. 5075E">
+      </div>
+      <div class="field">
+        <label for="year">Year</label>
+        <input type="number" name="year" id="year" min="1900" max="2100"
+               value="{{ item['year'] or '' }}" placeholder="2019">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="serial_number">Serial number</label>
+        <input type="text" name="serial_number" id="serial_number"
+               value="{{ item['serial_number'] or '' }}" placeholder="stamped on the frame">
+        <div class="hint">UNIQUE in the database — the machine's natural key.</div>
+      </div>
+      <div class="field">
+        <label for="purchase_date">Purchase date</label>
+        <input type="date" name="purchase_date" id="purchase_date"
+               value="{{ item['purchase_date'] or '' }}">
+        <div class="hint">SQLite has no DATE type — stored as ISO text.</div>
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select name="status" id="status">
+          {% for s in equipment_statuses %}
+            <option value="{{ s }}" {{ 'selected' if item['status'] == s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" type="submit">{{ 'Save to database' if mode == 'add' else 'Update record' }}</button>
+      <a class="btn btn-secondary"
+         href="{{ url_for('equipment_detail', equipment_id=equipment_id) if mode == 'edit' else url_for('equipment') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
